@@ -20,20 +20,25 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Class to compose Head & Footer article metabox
  */
 class Metabox_Article {
-
+	/** @var array Settings retrieved from the main controller. */
 	private $settings;
 
-	public function __construct() {
-		// Check if the current user's role has permission to edit HFC
-		if ( ! Common::user_has_allowed_role() ) {
-			return;
-		}
+	/** @var Plugin_Info Plugin metadata object. */
+	protected $plugin;
 
-		$this->settings = Main::settings();
+	/**
+	 * Initializes the class and registers frontend hooks.
+	 *
+	 * @param Plugin_Info $plugin   Instance of the plugin info object.
+	 * @param array       $settings Plugin settings array.
+	 */
+	public function __construct( Plugin_Info $plugin, $settings ) {
+		$this->plugin   = $plugin;
+		$this->settings = $settings;
 
 		add_action( 'load-post.php', array( $this, 'init_metaboxes' ) );
 		add_action( 'load-post-new.php', array( $this, 'init_metaboxes' ) );
-	} // END public function __construct
+	}
 
 	/**
 	 * Initialize metabox on proper backend screens
@@ -41,7 +46,7 @@ class Metabox_Article {
 	public function init_metaboxes() {
 		add_action( 'add_meta_boxes', array( $this, 'add' ) );
 		add_action( 'save_post', array( $this, 'save' ) );
-	} // END public function init_metaboxes
+	}
 
 	/**
 	 * This function adds a meta box with a callback function of my_metabox_callback()
@@ -56,14 +61,14 @@ class Metabox_Article {
 		foreach ( $this->settings['article']['post_types'] as $post_type ) {
 			add_meta_box(
 				'auhfc-head-footer-code',
-				esc_html( HFC_PLUGIN_NAME ),
+				esc_html( $this->plugin->name ),
 				array( $this, 'form' ),
 				$post_type,
 				'normal',
 				'low'
 			);
 		}
-	} // END public function add
+	}
 
 	/**
 	 * Callback function to prepare variables and render article metabox for Head & Footer Code.
@@ -73,9 +78,9 @@ class Metabox_Article {
 	 */
 	public function form( $post ) {
 		/** @var string $form_scope Used in ../templates/hfc-form.php */
-		$form_scope = esc_html__( 'article specific', 'head-footer-code' );
+		$auhfc_form_scope = esc_html__( 'article specific', 'head-footer-code' );
 
-		$auhfc_security_risk_notice = Common::security_risk_notice();
+		$auhfc_security_risk_notice = Common::get_security_risk_notice();
 
 		$post_id = $post->ID;
 
@@ -90,7 +95,7 @@ class Metabox_Article {
 
 		// Render nonce and form.
 		wp_nonce_field( '_head_footer_code_nonce', 'head_footer_code_nonce' );
-		include_once HFC_DIR . '/templates/hfc-form.php';
+		include_once $this->plugin->dir . '/templates/hfc-form.php';
 	}
 
 	/**
@@ -104,7 +109,9 @@ class Metabox_Article {
 		}
 
 		// Sanitize the nonce input.
-		$nonce = isset( $_POST['head_footer_code_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['head_footer_code_nonce'] ) ) : '';
+		$nonce = isset( $_POST['head_footer_code_nonce'] )
+		? sanitize_text_field( wp_unslash( $_POST['head_footer_code_nonce'] ) )
+		: '';
 
 		/**
 		 * To update HFC for the article, make sure:
@@ -125,6 +132,6 @@ class Metabox_Article {
 
 		// Sanitize data and update post meta.
 		$data = Common::sanitize_hfc_data( $_POST['auhfc'] );
-		update_post_meta( $post_id, '_auhfc', wp_slash( $data ) );
-	} // END public function save
-} // END class Metabox
+		update_post_meta( $post_id, $this->plugin->meta_key, wp_slash( $data ) );
+	}
+}
